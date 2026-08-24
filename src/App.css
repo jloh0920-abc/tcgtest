@@ -1,0 +1,392 @@
+.app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+.app-header {
+  margin-bottom: 24px;
+}
+
+.app-header h1 {
+  font-size: 32px;
+  letter-spacing: -0.4px;
+}
+
+.app-header p {
+  margin-top: 6px;
+  color: var(--text);
+}
+
+.app-main {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 32px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .app-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.app-search {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-collection {
+  position: sticky;
+  top: 20px;
+}
+
+.hint {
+  font-size: 14px;
+  color: var(--text);
+  opacity: 0.8;
+  line-height: 1.5;
+}
+
+.hint.error {
+  color: var(--danger);
+  opacity: 1;
+}
+
+/* Search bar */
+
+.search-bar {
+  position: relative;
+}
+
+.search-bar input {
+  width: 100%;
+  font-size: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--text-h);
+}
+
+.search-bar input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.suggestions li {
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.suggestions li.active,
+.suggestions li:hover {
+  background: var(--accent-bg);
+}
+
+/* Webcam scanner */
+
+.webcam-scanner button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.webcam-scanner > button {
+  background: var(--accent-bg);
+  border-color: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.webcam-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--bg-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.webcam-video-wrap {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+.webcam-video-wrap video {
+  width: 100%;
+  display: block;
+}
+
+.webcam-guide {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 8%;
+  height: 16%;
+  border: 2px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.webcam-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Printings */
+
+.printings-empty {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.printings-list h2 {
+  margin-bottom: 4px;
+}
+
+.printings-list > .hint {
+  margin-bottom: 16px;
+}
+
+.printings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.printing-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.printing-card img {
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  object-fit: cover;
+}
+
+.printing-thumb-placeholder {
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  background: var(--accent-bg);
+}
+
+.printing-info {
+  padding: 10px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.printing-set {
+  font-weight: 600;
+  color: var(--text-h);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.printing-meta {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+  text-transform: capitalize;
+}
+
+.foil-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.printing-price {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.printing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.printing-actions button {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.printing-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.printing-actions a {
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Collection */
+
+.collection {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  padding: 16px;
+}
+
+.collection-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.collection-stats {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 14px;
+}
+
+.collection-stats .total {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-h);
+}
+
+.collection-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.collection-item {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.collection-item img,
+.collection-item .printing-thumb-placeholder {
+  width: 48px;
+  aspect-ratio: 5 / 7;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.collection-item-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.collection-item-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.qty-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qty-control button {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  line-height: 1;
+}
+
+.collection-item-price {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.remove-btn {
+  border: none;
+  background: none;
+  color: var(--danger);
+  font-size: 12px;
+  padding: 0;
+}
+
+.collection-footer {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.collection-footer button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.collection-footer button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}

@@ -39,6 +39,60 @@ export function collectionToCsv(items: CollectionItem[]): string {
     .join("\n");
 }
 
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let i = 0;
+
+  while (i < text.length) {
+    const char = text[i];
+
+    if (inQuotes) {
+      if (char === '"' && text[i + 1] === '"') {
+        field += '"';
+        i += 2;
+        continue;
+      }
+      if (char === '"') {
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      field += char;
+      i++;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      i++;
+    } else if (char === ",") {
+      row.push(field);
+      field = "";
+      i++;
+    } else if (char === "\r") {
+      i++;
+    } else if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+      i++;
+    } else {
+      field += char;
+      i++;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+
+  return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+}
+
 export function downloadCsv(filename: string, csv: string): void {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

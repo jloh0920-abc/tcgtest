@@ -11,7 +11,8 @@ running it locally.
 - **Every printing** of a card (every set it was ever released in) shown side by side with
   its own price, image, and set/rarity info.
 - **Foil toggle** per printing, and per item once it's in your collection list.
-- **Collection list** with running total, quantity per card, and CSV export for record-keeping.
+- **Collection list** with running total, quantity per card, and CSV import/export for
+  record-keeping.
 - **Webcam scanning (bonus)**: hold a card up to your webcam, capture, and the app runs OCR
   on the title, then fuzzy-matches it against Scryfall to fill in the search box for you to
   confirm and pick the right printing.
@@ -54,6 +55,20 @@ card automatically, you still pick the printing and confirm.
 
 The first scan may take a moment since the OCR engine downloads its language data on first
 use (cached by the browser after that).
+
+## Importing a CSV
+
+Click **Import CSV** in the collection panel and pick a file exported from ManaBox (or any
+CSV with similar columns). It looks for columns named `Name`, `Set code`, `Collector number`,
+`Scryfall ID`, `Foil`, and `Quantity` (matching is case-insensitive, and `Set`/`Qty`/`Count`
+are accepted too) — extra columns are ignored.
+
+Each row is looked up on Scryfall to pull the current price and image: the Scryfall ID is
+used when present (most exact), falling back to set code + collector number, then card name
+alone if that's all a row has. Rows that can't be matched are reported rather than silently
+dropped, so you'll see a summary like "Imported 38 cards. 2 couldn't be matched on Scryfall."
+Imported cards are added as new entries — the app doesn't try to merge them into cards
+already in your list, so undo an accidental double-import by removing the duplicates by hand.
 
 ## Tech
 

@@ -1,6 +1,7 @@
 import type { CollectionItem } from "../types/collection";
 import { collectionToCsv, downloadCsv } from "../utils/csv";
 import { currentUnitPrice, formatUsd } from "../utils/card";
+import { ImportPanel } from "./ImportPanel";
 
 interface CollectionProps {
   items: CollectionItem[];
@@ -8,9 +9,17 @@ interface CollectionProps {
   onRemove: (id: string) => void;
   onToggleFoil: (id: string) => void;
   onClear: () => void;
+  onImport: (items: CollectionItem[]) => void;
 }
 
-export function Collection({ items, onUpdateQty, onRemove, onToggleFoil, onClear }: CollectionProps) {
+export function Collection({
+  items,
+  onUpdateQty,
+  onRemove,
+  onToggleFoil,
+  onClear,
+  onImport,
+}: CollectionProps) {
   const total = items.reduce(
     (sum, item) => sum + (currentUnitPrice(item) ?? 0) * item.qty,
     0,
@@ -26,6 +35,8 @@ export function Collection({ items, onUpdateQty, onRemove, onToggleFoil, onClear
           <span className="total">{formatUsd(total)}</span>
         </div>
       </div>
+
+      <ImportPanel onImport={onImport} />
 
       {items.length === 0 ? (
         <p className="hint">Cards you add will show up here with a running total value.</p>

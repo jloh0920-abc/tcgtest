@@ -57,6 +57,10 @@ function App() {
     setScannedQuery(name);
   }
 
+  function handleImport(imported: CollectionItem[]) {
+    setItems((prev) => [...imported, ...prev]);
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -78,6 +82,7 @@ function App() {
             onRemove={handleRemove}
             onToggleFoil={handleToggleFoil}
             onClear={handleClear}
+            onImport={handleImport}
           />
         </section>
       </main>

@@ -31,6 +31,43 @@ export async function getCardPrintings(exactName: string): Promise<ScryfallCard[
   return data.data;
 }
 
+export type CardIdentifier =
+  | { id: string }
+  | { set: string; collector_number: string }
+  | { name: string };
+
+interface ScryfallCollectionResponse {
+  object: "list";
+  not_found: CardIdentifier[];
+  data: ScryfallCard[];
+}
+
+const COLLECTION_CHUNK_SIZE = 75;
+
+export async function getCardsByIdentifiers(
+  identifiers: CardIdentifier[],
+): Promise<{ found: ScryfallCard[]; notFound: CardIdentifier[] }> {
+  const found: ScryfallCard[] = [];
+  const notFound: CardIdentifier[] = [];
+
+  for (let i = 0; i < identifiers.length; i += COLLECTION_CHUNK_SIZE) {
+    const chunk = identifiers.slice(i, i + COLLECTION_CHUNK_SIZE);
+    const res = await fetch(`${BASE_URL}/cards/collection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ identifiers: chunk }),
+    });
+    if (!res.ok) {
+      throw new Error(`Scryfall lookup failed (${res.status})`);
+    }
+    const data = (await res.json()) as ScryfallCollectionResponse;
+    found.push(...data.data);
+    notFound.push(...data.not_found);
+  }
+
+  return { found, notFound };
+}
+
 export async function findClosestCardName(rawText: string): Promise<string | null> {
   const cleaned = rawText.trim();
   if (!cleaned) return null;

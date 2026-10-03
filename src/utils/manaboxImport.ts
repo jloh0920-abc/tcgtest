@@ -1,4 +1,5 @@
 import { parseCsv } from "./csv";
+import { isScryfallId } from "../api/scryfall";
 import type { ImportRow } from "../types/import";
 
 const HEADER_ALIASES: Record<keyof ImportRow, string[]> = {
@@ -19,9 +20,17 @@ function findColumn(headers: string[], aliases: string[]): number {
   return -1;
 }
 
-export function parseImportCsv(text: string): { rows: ImportRow[]; skipped: number } {
+export interface ParsedImport {
+  rows: ImportRow[];
+  /** Rows with no usable card info at all (no ID, no set+number, no name). */
+  skipped: number;
+  /** Rows whose Scryfall ID cell wasn't a valid ID; they fall back to set+number or name. */
+  invalidIds: number;
+}
+
+export function parseImportCsv(text: string): ParsedImport {
   const table = parseCsv(text);
-  if (table.length === 0) return { rows: [], skipped: 0 };
+  if (table.length === 0) return { rows: [], skipped: 0, invalidIds: 0 };
 
   const [headerRow, ...dataRows] = table;
   const columns = {
@@ -37,12 +46,24 @@ export function parseImportCsv(text: string): { rows: ImportRow[]; skipped: numb
 
   const rows: ImportRow[] = [];
   let skipped = 0;
+  let invalidIds = 0;
 
   for (const dataRow of dataRows) {
     const name = cell(dataRow, columns.name);
-    const scryfallId = cell(dataRow, columns.scryfallId);
+    const rawId = cell(dataRow, columns.scryfallId);
     const setCode = cell(dataRow, columns.setCode).toLowerCase();
     const collectorNumber = cell(dataRow, columns.collectorNumber);
+
+    // Scryfall rejects a whole batch if any `id` isn't a real UUID, so only
+    // keep IDs that look valid; anything else falls back to set+number/name.
+    let scryfallId = "";
+    if (rawId) {
+      if (isScryfallId(rawId)) {
+        scryfallId = rawId.toLowerCase();
+      } else {
+        invalidIds++;
+      }
+    }
 
     if (!scryfallId && !(setCode && collectorNumber) && !name) {
       skipped++;
@@ -62,5 +83,5 @@ export function parseImportCsv(text: string): { rows: ImportRow[]; skipped: numb
     });
   }
 
-  return { rows, skipped };
+  return { rows, skipped, invalidIds };
 }

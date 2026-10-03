@@ -65,8 +65,10 @@ are accepted too) — extra columns are ignored.
 
 Each row is looked up on Scryfall to pull the current price and image: the Scryfall ID is
 used when present (most exact), falling back to set code + collector number, then card name
-alone if that's all a row has. Rows that can't be matched are reported rather than silently
-dropped, so you'll see a summary like "Imported 38 cards. 2 couldn't be matched on Scryfall."
+alone if that's all a row has. A Scryfall ID cell that isn't a real ID (say, one edited by
+hand in a spreadsheet) is ignored for that row so it falls back to set + number instead of
+breaking the import. Rows that can't be matched are reported rather than silently dropped,
+so you'll see a summary like "Imported 38 cards. 2 couldn't be matched on Scryfall."
 Imported cards are added as new entries — the app doesn't try to merge them into cards
 already in your list, so undo an accidental double-import by removing the duplicates by hand.
 

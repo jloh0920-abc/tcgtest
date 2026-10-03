@@ -42,30 +42,100 @@ interface ScryfallCollectionResponse {
   data: ScryfallCard[];
 }
 
+interface ScryfallErrorResponse {
+  object: "error";
+  status: number;
+  code: string;
+  details?: string;
+  warnings?: string[];
+}
+
+export interface RejectedIdentifier {
+  identifier: CardIdentifier;
+  reason: string;
+}
+
+export interface CollectionLookupResult {
+  found: ScryfallCard[];
+  notFound: CardIdentifier[];
+  rejected: RejectedIdentifier[];
+}
+
 const COLLECTION_CHUNK_SIZE = 75;
+const COLLECTION_REQUEST_GAP_MS = 100;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isScryfallId(value: string): boolean {
+  return UUID_PATTERN.test(value.trim());
+}
+
+async function readScryfallError(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as ScryfallErrorResponse;
+    const parts = [body.details, ...(body.warnings ?? [])].filter(Boolean);
+    if (parts.length > 0) return parts.join(" ");
+  } catch {
+    // not JSON — fall through to a generic message
+  }
+  return `Scryfall returned HTTP ${res.status}`;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Looks up one chunk (≤75 identifiers). Scryfall rejects an entire batch with
+ * HTTP 400 if any single identifier is malformed, so on a 400 we split the chunk
+ * and retry each half, narrowing down to the individual bad identifier(s) so
+ * every valid row still imports and only the bad ones are reported.
+ */
+async function lookupChunk(chunk: CardIdentifier[], result: CollectionLookupResult): Promise<void> {
+  const res = await fetch(`${BASE_URL}/cards/collection`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ identifiers: chunk }),
+  });
+
+  if (res.ok) {
+    const data = (await res.json()) as ScryfallCollectionResponse;
+    result.found.push(...data.data);
+    result.notFound.push(...data.not_found);
+    return;
+  }
+
+  const reason = await readScryfallError(res);
+
+  if (res.status === 400 && chunk.length > 1) {
+    const mid = Math.ceil(chunk.length / 2);
+    await delay(COLLECTION_REQUEST_GAP_MS);
+    await lookupChunk(chunk.slice(0, mid), result);
+    await delay(COLLECTION_REQUEST_GAP_MS);
+    await lookupChunk(chunk.slice(mid), result);
+    return;
+  }
+
+  if (res.status === 400) {
+    result.rejected.push({ identifier: chunk[0], reason });
+    return;
+  }
+
+  // Anything other than a 400 (rate limit, outage, …) is not the file's fault.
+  throw new Error(`Scryfall lookup failed: ${reason}`);
+}
 
 export async function getCardsByIdentifiers(
   identifiers: CardIdentifier[],
-): Promise<{ found: ScryfallCard[]; notFound: CardIdentifier[] }> {
-  const found: ScryfallCard[] = [];
-  const notFound: CardIdentifier[] = [];
+): Promise<CollectionLookupResult> {
+  const result: CollectionLookupResult = { found: [], notFound: [], rejected: [] };
 
   for (let i = 0; i < identifiers.length; i += COLLECTION_CHUNK_SIZE) {
-    const chunk = identifiers.slice(i, i + COLLECTION_CHUNK_SIZE);
-    const res = await fetch(`${BASE_URL}/cards/collection`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ identifiers: chunk }),
-    });
-    if (!res.ok) {
-      throw new Error(`Scryfall lookup failed (${res.status})`);
-    }
-    const data = (await res.json()) as ScryfallCollectionResponse;
-    found.push(...data.data);
-    notFound.push(...data.not_found);
+    if (i > 0) await delay(COLLECTION_REQUEST_GAP_MS);
+    await lookupChunk(identifiers.slice(i, i + COLLECTION_CHUNK_SIZE), result);
   }
 
-  return { found, notFound };
+  return result;
 }
 
 export async function findClosestCardName(rawText: string): Promise<string | null> {

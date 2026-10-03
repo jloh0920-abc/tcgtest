@@ -49,7 +49,7 @@ export function ImportPanel({ onImport }: ImportPanelProps) {
     setMessage("Reading file…");
     try {
       const text = await file.text();
-      const { rows, skipped } = parseImportCsv(text);
+      const { rows, skipped, invalidIds } = parseImportCsv(text);
       if (rows.length === 0) {
         setStatus("error");
         setMessage(
@@ -59,7 +59,11 @@ export function ImportPanel({ onImport }: ImportPanelProps) {
       }
 
       setMessage(`Looking up ${rows.length} card${rows.length === 1 ? "" : "s"} on Scryfall…`);
-      const { found } = await getCardsByIdentifiers(rows.map(toIdentifier));
+      const identifiers = rows.map(toIdentifier);
+      const { found, rejected } = await getCardsByIdentifiers(identifiers);
+      // Rows Scryfall refused outright are reported separately — don't also
+      // count them as "couldn't be matched".
+      const rejectedKeys = new Set(rejected.map((r) => JSON.stringify(r.identifier)));
 
       const byId = new Map(found.map((c) => [c.id, c]));
       const bySetNumber = new Map(
@@ -88,14 +92,14 @@ export function ImportPanel({ onImport }: ImportPanelProps) {
 
       const items: CollectionItem[] = [];
       let unresolved = 0;
-      for (const row of rows) {
+      rows.forEach((row, i) => {
         const card = resolveCard(row);
         if (!card) {
-          unresolved++;
-          continue;
+          if (!rejectedKeys.has(JSON.stringify(identifiers[i]))) unresolved++;
+          return;
         }
         items.push(buildCollectionItem(card, row));
-      }
+      });
 
       if (items.length > 0) onImport(items);
 
@@ -103,10 +107,21 @@ export function ImportPanel({ onImport }: ImportPanelProps) {
       if (unresolved > 0) {
         parts.push(`${unresolved} couldn't be matched on Scryfall.`);
       }
+      if (rejected.length > 0) {
+        // Scryfall tells us exactly why it refused an identifier; show the first reason.
+        parts.push(
+          `${rejected.length} row${rejected.length === 1 ? " was" : "s were"} rejected by Scryfall (${rejected[0].reason}).`,
+        );
+      }
+      if (invalidIds > 0) {
+        parts.push(
+          `${invalidIds} row${invalidIds === 1 ? " had" : "s had"} an invalid Scryfall ID and matched by set/number instead.`,
+        );
+      }
       if (skipped > 0) {
         parts.push(`${skipped} row${skipped === 1 ? "" : "s"} skipped (missing card info).`);
       }
-      setStatus(unresolved > 0 && items.length === 0 ? "error" : "done");
+      setStatus(items.length === 0 ? "error" : "done");
       setMessage(parts.join(" "));
     } catch (err) {
       setStatus("error");

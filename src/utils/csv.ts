@@ -9,10 +9,14 @@ function escapeCsvField(value: string): string {
 }
 
 export function collectionToCsv(items: CollectionItem[]): string {
+  // Header names are chosen so a file exported here re-imports cleanly
+  // (the importer looks for "Set code", "Collector number", "Scryfall ID", etc.).
   const header = [
     "Name",
-    "Set",
-    "Collector Number",
+    "Set name",
+    "Set code",
+    "Collector number",
+    "Scryfall ID",
     "Rarity",
     "Foil",
     "Quantity",
@@ -25,7 +29,9 @@ export function collectionToCsv(items: CollectionItem[]): string {
     return [
       item.name,
       item.setName,
+      item.setCode,
       item.collectorNumber,
+      item.cardId,
       item.rarity,
       item.foil ? "Yes" : "No",
       String(item.qty),

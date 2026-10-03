@@ -1,5 +1,9 @@
 import { useRef, useState } from "react";
-import { getCardsByIdentifiers, type CardIdentifier } from "../api/scryfall";
+import {
+  fetchSetCodeMap,
+  getCardsByIdentifiers,
+  type CardIdentifier,
+} from "../api/scryfall";
 import { parseImportCsv } from "../utils/manaboxImport";
 import type { CollectionItem } from "../types/collection";
 import type { ImportRow } from "../types/import";
@@ -12,12 +16,19 @@ interface ImportPanelProps {
 
 type ImportStatus = "idle" | "working" | "done" | "error";
 
-function toIdentifier(row: ImportRow): CardIdentifier {
+/** Most-exact identifier available for a row, or null if the row has nothing usable. */
+function toIdentifier(row: ImportRow): CardIdentifier | null {
   if (row.scryfallId) return { id: row.scryfallId };
   if (row.setCode && row.collectorNumber) {
     return { set: row.setCode, collector_number: row.collectorNumber };
   }
-  return { name: row.name };
+  if (row.name && row.setCode) return { name: row.name, set: row.setCode };
+  if (row.name) return { name: row.name };
+  return null;
+}
+
+function isExactIdentifier(identifier: CardIdentifier): boolean {
+  return "id" in identifier || "collector_number" in identifier;
 }
 
 function buildCollectionItem(card: ScryfallCard, row: ImportRow): CollectionItem {
@@ -39,6 +50,10 @@ function buildCollectionItem(card: ScryfallCard, row: ImportRow): CollectionItem
   };
 }
 
+function plural(count: number, singular: string, pluralWord = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : pluralWord}`;
+}
+
 export function ImportPanel({ onImport }: ImportPanelProps) {
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [message, setMessage] = useState("");
@@ -53,14 +68,29 @@ export function ImportPanel({ onImport }: ImportPanelProps) {
       if (rows.length === 0) {
         setStatus("error");
         setMessage(
-          "Couldn't find any usable rows. Expected columns like Name, Set code, Collector number, and Scryfall ID.",
+          "Couldn't find any usable rows. Expected columns like Name, Set code (or Set name), Collector number, and Scryfall ID.",
         );
         return;
       }
 
-      setMessage(`Looking up ${rows.length} card${rows.length === 1 ? "" : "s"} on Scryfall…`);
+      // Files that only give the set *name* (this app's older exports, some
+      // other tools) need the name translated to Scryfall's set code first.
+      const unknownSets = new Set<string>();
+      if (rows.some((row) => !row.scryfallId && !row.setCode && row.setName)) {
+        setMessage("Looking up set codes on Scryfall…");
+        const setCodes = await fetchSetCodeMap();
+        for (const row of rows) {
+          if (row.scryfallId || row.setCode || !row.setName) continue;
+          const code = setCodes.get(row.setName.toLowerCase());
+          if (code) row.setCode = code;
+          else unknownSets.add(row.setName);
+        }
+      }
+
       const identifiers = rows.map(toIdentifier);
-      const { found, rejected } = await getCardsByIdentifiers(identifiers);
+      const lookups = identifiers.filter((id): id is CardIdentifier => id !== null);
+      setMessage(`Looking up ${plural(lookups.length, "card")} on Scryfall…`);
+      const { found, rejected } = await getCardsByIdentifiers(lookups);
       // Rows Scryfall refused outright are reported separately — don't also
       // count them as "couldn't be matched".
       const rejectedKeys = new Set(rejected.map((r) => JSON.stringify(r.identifier)));
@@ -69,57 +99,74 @@ export function ImportPanel({ onImport }: ImportPanelProps) {
       const bySetNumber = new Map(
         found.map((c) => [`${c.set}:${c.collector_number}`.toLowerCase(), c]),
       );
+      const byNameInSet = new Map<string, ScryfallCard>();
       const byName = new Map<string, ScryfallCard>();
       for (const c of found) {
-        const key = c.name.toLowerCase();
-        if (!byName.has(key)) byName.set(key, c);
+        const nameKey = c.name.toLowerCase();
+        if (!byNameInSet.has(`${nameKey}|${c.set}`)) byNameInSet.set(`${nameKey}|${c.set}`, c);
+        if (!byName.has(nameKey)) byName.set(nameKey, c);
       }
 
       function resolveCard(row: ImportRow): ScryfallCard | undefined {
         if (row.scryfallId) {
-          const byIdMatch = byId.get(row.scryfallId);
-          if (byIdMatch) return byIdMatch;
+          const match = byId.get(row.scryfallId);
+          if (match) return match;
         }
         if (row.setCode && row.collectorNumber) {
-          const bySetMatch = bySetNumber.get(
-            `${row.setCode}:${row.collectorNumber}`.toLowerCase(),
-          );
-          if (bySetMatch) return bySetMatch;
+          const match = bySetNumber.get(`${row.setCode}:${row.collectorNumber}`.toLowerCase());
+          if (match) return match;
         }
-        if (row.name) return byName.get(row.name.toLowerCase());
+        if (row.name) {
+          const nameKey = row.name.toLowerCase();
+          return (row.setCode && byNameInSet.get(`${nameKey}|${row.setCode}`)) || byName.get(nameKey);
+        }
         return undefined;
       }
 
       const items: CollectionItem[] = [];
       let unresolved = 0;
+      let approximate = 0;
       rows.forEach((row, i) => {
+        const identifier = identifiers[i];
         const card = resolveCard(row);
         if (!card) {
-          if (!rejectedKeys.has(JSON.stringify(identifiers[i]))) unresolved++;
+          if (!identifier || !rejectedKeys.has(JSON.stringify(identifier))) unresolved++;
           return;
         }
+        if (identifier && !isExactIdentifier(identifier)) approximate++;
         items.push(buildCollectionItem(card, row));
       });
 
       if (items.length > 0) onImport(items);
 
-      const parts = [`Imported ${items.length} card${items.length === 1 ? "" : "s"}.`];
+      const parts = [`Imported ${plural(items.length, "card")}.`];
       if (unresolved > 0) {
         parts.push(`${unresolved} couldn't be matched on Scryfall.`);
+      }
+      if (unknownSets.size > 0) {
+        const names = [...unknownSets].slice(0, 3).join(", ");
+        parts.push(
+          `${plural(unknownSets.size, "set name wasn't", "set names weren't")} recognized (${names}${unknownSets.size > 3 ? ", …" : ""}).`,
+        );
+      }
+      if (approximate > 0) {
+        parts.push(
+          `${approximate} matched by name only — the printing (and price) may differ from your copy.`,
+        );
       }
       if (rejected.length > 0) {
         // Scryfall tells us exactly why it refused an identifier; show the first reason.
         parts.push(
-          `${rejected.length} row${rejected.length === 1 ? " was" : "s were"} rejected by Scryfall (${rejected[0].reason}).`,
+          `${plural(rejected.length, "row was", "rows were")} rejected by Scryfall (${rejected[0].reason}).`,
         );
       }
       if (invalidIds > 0) {
         parts.push(
-          `${invalidIds} row${invalidIds === 1 ? " had" : "s had"} an invalid Scryfall ID and matched by set/number instead.`,
+          `${plural(invalidIds, "row had", "rows had")} an invalid Scryfall ID and matched by set/number instead.`,
         );
       }
       if (skipped > 0) {
-        parts.push(`${skipped} row${skipped === 1 ? "" : "s"} skipped (missing card info).`);
+        parts.push(`${plural(skipped, "row")} skipped (missing card info).`);
       }
       setStatus(items.length === 0 ? "error" : "done");
       setMessage(parts.join(" "));

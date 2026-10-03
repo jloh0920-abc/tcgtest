@@ -58,14 +58,17 @@ use (cached by the browser after that).
 
 ## Importing a CSV
 
-Click **Import CSV** in the collection panel and pick a file exported from ManaBox (or any
-CSV with similar columns). It looks for columns named `Name`, `Set code`, `Collector number`,
-`Scryfall ID`, `Foil`, and `Quantity` (matching is case-insensitive, and `Set`/`Qty`/`Count`
-are accepted too) — extra columns are ignored.
+Click **Import CSV** in the collection panel and pick a file exported from ManaBox, from this
+app, or from most other collection tools. It looks for columns named `Name`, `Set code` and/or
+`Set name` (a lone `Set` or `Edition` column works too, whether it holds codes or full names),
+`Collector number`, `Scryfall ID`, `Foil` (`Yes`/`No`, `foil`/`normal`, true/false…), and
+`Quantity` (`Qty`/`Count`). Matching is case-insensitive and extra columns are ignored.
 
 Each row is looked up on Scryfall to pull the current price and image: the Scryfall ID is
-used when present (most exact), falling back to set code + collector number, then card name
-alone if that's all a row has. A Scryfall ID cell that isn't a real ID (say, one edited by
+used when present (most exact), falling back to set + collector number (set names are
+translated to Scryfall set codes automatically), then card name within the set, then card name
+alone if that's all a row has — name-only matches are flagged in the summary since the
+printing, and therefore the price, may not be the copy you own. A Scryfall ID cell that isn't a real ID (say, one edited by
 hand in a spreadsheet) is ignored for that row so it falls back to set + number instead of
 breaking the import. Rows that can't be matched are reported rather than silently dropped,
 so you'll see a summary like "Imported 38 cards. 2 couldn't be matched on Scryfall."

@@ -1,14 +1,26 @@
 import { parseCsv } from "./csv";
-import { isScryfallId } from "../api/scryfall";
+import { isScryfallId, looksLikeSetCode } from "../api/scryfall";
 import type { ImportRow } from "../types/import";
 
+// Header names accepted for each field (case-insensitive). Covers ManaBox's
+// export, this app's own export (old and new), and common names from other
+// collection tools.
 const HEADER_ALIASES: Record<keyof ImportRow, string[]> = {
-  name: ["name", "card name"],
-  setCode: ["set code", "set"],
-  collectorNumber: ["collector number", "collector #", "number"],
-  scryfallId: ["scryfall id", "scryfallid"],
-  foil: ["foil"],
-  quantity: ["quantity", "qty", "count"],
+  name: ["name", "card name", "card"],
+  setCode: ["set code", "set_code", "setcode", "edition code", "code"],
+  setName: ["set name", "set_name", "setname", "set", "edition", "expansion"],
+  collectorNumber: [
+    "collector number",
+    "collector_number",
+    "collector #",
+    "collector no",
+    "card number",
+    "number",
+    "no.",
+  ],
+  scryfallId: ["scryfall id", "scryfall_id", "scryfallid", "scryfall"],
+  foil: ["foil", "finish"],
+  quantity: ["quantity", "qty", "count", "amount"],
 };
 
 function findColumn(headers: string[], aliases: string[]): number {
@@ -18,6 +30,19 @@ function findColumn(headers: string[], aliases: string[]): number {
     if (idx !== -1) return idx;
   }
   return -1;
+}
+
+// "Yes"/"No" (this app's export), "foil"/"normal"/"etched" (ManaBox),
+// true/false, 1/0, and finish names like "surge foil" all need to work.
+const FOIL_TRUE = new Set(["yes", "y", "true", "1", "foil", "etched"]);
+const FOIL_FALSE = new Set(["no", "n", "false", "0", "normal", "nonfoil", "non-foil", "non foil", ""]);
+
+export function parseFoil(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (FOIL_TRUE.has(v)) return true;
+  if (FOIL_FALSE.has(v)) return false;
+  if (v.includes("non")) return false;
+  return v.includes("foil") || v.includes("etched");
 }
 
 export interface ParsedImport {
@@ -36,6 +61,7 @@ export function parseImportCsv(text: string): ParsedImport {
   const columns = {
     name: findColumn(headerRow, HEADER_ALIASES.name),
     setCode: findColumn(headerRow, HEADER_ALIASES.setCode),
+    setName: findColumn(headerRow, HEADER_ALIASES.setName),
     collectorNumber: findColumn(headerRow, HEADER_ALIASES.collectorNumber),
     scryfallId: findColumn(headerRow, HEADER_ALIASES.scryfallId),
     foil: findColumn(headerRow, HEADER_ALIASES.foil),
@@ -51,8 +77,21 @@ export function parseImportCsv(text: string): ParsedImport {
   for (const dataRow of dataRows) {
     const name = cell(dataRow, columns.name);
     const rawId = cell(dataRow, columns.scryfallId);
-    const setCode = cell(dataRow, columns.setCode).toLowerCase();
     const collectorNumber = cell(dataRow, columns.collectorNumber);
+
+    // A column labelled "Set" might hold a code ("2XM") or a full name
+    // ("Double Masters"), and a "Set code" column might hold a name. Sort each
+    // value by what it looks like rather than trusting the header.
+    let setCode = "";
+    let setName = "";
+    for (const value of [cell(dataRow, columns.setCode), cell(dataRow, columns.setName)]) {
+      if (!value) continue;
+      if (looksLikeSetCode(value)) {
+        if (!setCode) setCode = value.toLowerCase();
+      } else if (!setName) {
+        setName = value;
+      }
+    }
 
     // Scryfall rejects a whole batch if any `id` isn't a real UUID, so only
     // keep IDs that look valid; anything else falls back to set+number/name.
@@ -65,20 +104,20 @@ export function parseImportCsv(text: string): ParsedImport {
       }
     }
 
-    if (!scryfallId && !(setCode && collectorNumber) && !name) {
+    if (!scryfallId && !((setCode || setName) && collectorNumber) && !name) {
       skipped++;
       continue;
     }
 
-    const foilRaw = cell(dataRow, columns.foil).toLowerCase();
     const quantity = Number.parseInt(cell(dataRow, columns.quantity), 10);
 
     rows.push({
       name,
       setCode,
+      setName,
       collectorNumber,
       scryfallId,
-      foil: foilRaw.includes("foil"),
+      foil: parseFoil(cell(dataRow, columns.foil)),
       quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
     });
   }
